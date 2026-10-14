@@ -1,0 +1,51 @@
+name: Build CarMenuPlugin
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "AssettoServer surum etiketi (sunucunuzla ayni olmali)"
+        default: "v0.0.55-pre44"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: AssettoServer kaynak kodunu al
+        uses: actions/checkout@v4
+        with:
+          repository: compujuckel/AssettoServer
+          ref: ${{ inputs.ref || 'v0.0.55-pre44' }}
+          path: AssettoServer
+
+      - name: Eklenti kodunu AssettoServer klasorunun icine al
+        uses: actions/checkout@v4
+        with:
+          path: AssettoServer/CarMenuPlugin
+
+      - name: .NET 11 SDK kur
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 11.0.x
+          dotnet-quality: preview
+
+      - name: AssettoServer global.json sil (SDK 11.0.0 istiyor, yuklu degil)
+        shell: pwsh
+        run: Remove-Item AssettoServer/global.json -ErrorAction SilentlyContinue
+
+      - name: Namespace ara (gecici)
+        shell: pwsh
+        run: |
+          Get-ChildItem AssettoServer -Recurse -Filter *.cs | Select-String -Pattern 'interface IAssettoServerAutostart|class OnlineEvent' | ForEach-Object { $ns = (Select-String -Path $_.Path -Pattern '^namespace ' | Select-Object -First 1).Line; "$($_.Path) | $($_.Line.Trim()) | $ns" }
+
+      - name: Derle
+        working-directory: AssettoServer/CarMenuPlugin
+        run: dotnet publish -c Release -r win-x64
+
+      - name: Sonucu yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: CarMenuPlugin
+          path: AssettoServer/out-win-x64/plugins/CarMenuPlugin
+          if-no-files-found: error
